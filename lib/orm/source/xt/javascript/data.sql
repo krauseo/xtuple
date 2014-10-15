@@ -1728,31 +1728,6 @@ select xt.install_js('XT','Data','xtuple', $$
     },
 
     /**
-     * Get the current database server version.
-     * If the optional precision argument is passed, return the first prec
-     * fields of the full version number.
-     *
-     * @example
-     * var x   = getPgVersion(1),       // '9'
-     *     xy  = getPgVersion(2),       // '9.1'
-     *     xyz = getPgVersion(3),       // '9.1.3'
-     *     all = getPgVersion();        // '9.1.3'
-     *
-     * @param   {Number} proc - optional precision
-     * @returns {String} X[.Y[.Z]]
-     */
-    getPgVersion: function (prec) {
-      var q = plv8.execute("select setting from pg_settings " +
-                           "where name='server_version';"),
-          ret;
-      ret = q[0].setting;
-      if (typeof prec === 'number') {
-        ret = ret.split(".").slice(0,prec).join(".");
-      }
-      return ret;
-    },
-
-    /**
      * Get the oid for a given table name.
      *
      * @param {String} table name
@@ -2424,22 +2399,18 @@ select xt.install_js('XT','Data','xtuple', $$
         lockExp,
         oid,
         pcheck,
-        pgver = 0 + XT.Data.getPgVersion(2),
         pid = options.pid || null,
-        pidcol = (pgver < 9.2) ? "procpid" : "pid",
-        pidSql = "select usename, {pidcol} " +
+        pidSql = "select usename, procpid " +
                  "from pg_stat_activity " +
                  "where datname=current_database() " +
                  " and usename=$1 " +
-                 " and {pidcol}=$2;",
+                 " and procpid=$2;",
         query,
         selectSql = "select * " +
                     "from xt.lock " +
                     "where lock_table_oid = $1 " +
                     " and lock_record_id = $2;",
         username = XT.username;
-
-      pidSql = pidSql.replace(/{pidcol}/g, pidcol);
 
       /* If passed a table name, look up the oid. */
       oid = typeof table === "string" ? this.getTableOid(table) : table;

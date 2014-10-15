@@ -50,7 +50,10 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
       grade = "0",
       tableName = defaultSchema ? defaultSchema + ".pkgreport" : "report",
       description,
-      upsertSql;
+      disableSql,
+      updateSql,
+      insertSql,
+      enableSql;
 
     if (lines[3].indexOf(" <name>") !== 0 ||
         lines[4].indexOf(" <description>") !== 0) {
@@ -65,41 +68,40 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
       grade = grade.substring(0, grade.indexOf("<"));
     }
 
-    upsertSql = "do language plpgsql $do$" +
-                "declare _grade integer := null;" +
-                " begin" +
-                "  select min(report_grade) into _grade" +
-                "    from " + tableName +
-                "   where report_name = '" + name + "';" +
-                "  if _grade is null then" +
-                "    insert into " + tableName + " (report_name, report_descrip," +
-                "        report_source, report_loaddate, report_grade)" +
-                "      select '" + name + "', $$" + description + "$$," +
-                "        $$" + content + "$$, now(), min(sequence_value)" +
-                "        from sequence" +
-                "       where sequence_value >= " + grade + "" +
-                "         and sequence_value not in (" +
-                "        select report_grade from report" +
-                "         where report_name = '" + name + "'" +
-                "       );" +
-                "  else " +
-                "    update " + tableName + " set" +
-                "      report_descrip = $$" + description + "$$," +
-                "      report_source = $$" + content + "$$," +
-                "      report_loaddate = now() " +
-                "     where report_name = '" + name + "'" +
-                "      and report_grade = _grade;" +
-                "  end if;" +
-                " end $do$;";
-    return upsertSql;
+    disableSql = "ALTER TABLE " + tableName + " DISABLE TRIGGER ALL;";
+
+    insertSql = "insert into " + tableName + " (report_name, report_descrip, " +
+      "report_source, report_loaddate, report_grade) select " +
+      "'" + name + "'," +
+      "$$" + description + "$$," +
+      "$$" + content + "$$," +
+      "now(), " + grade +
+      " where not exists (select c.report_id from " + tableName + " c " +
+      "where report_name = '" + name +
+      "' and report_grade = " + grade + ");";
+
+    updateSql = "update " + tableName + " set " +
+      " report_descrip = $$" + description +
+      "$$, report_source = $$" + content +
+      "$$, report_loaddate = now() " +
+      "where report_name = '" + name +
+      "' and report_grade = " + grade + ";";
+
+    enableSql = "ALTER TABLE " + tableName + " ENABLE TRIGGER ALL;";
+
+    return disableSql + insertSql + updateSql + enableSql;
   };
 
   var convertFromScript = function (content, filename, defaultSchema) {
     var name = path.basename(filename, '.js'),
       tableName = defaultSchema ? defaultSchema + ".pkgscript" : "unknown",
       notes = "", //"xtMfg package",
+      disableSql,
       insertSql,
-      updateSql;
+      updateSql,
+      enableSql;
+
+    disableSql = "ALTER TABLE " + tableName + " DISABLE TRIGGER ALL;";
 
     insertSql = "insert into " + tableName + " (script_name, script_order, script_enabled, " +
       "script_source, script_notes) select " +
@@ -115,15 +117,21 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
       "$$, script_notes = '" + notes + "' " +
       "where script_name = '" + name + "';";
 
-    return insertSql + updateSql;
+    enableSql = "ALTER TABLE " + tableName + " ENABLE TRIGGER ALL;";
+
+    return disableSql + insertSql + updateSql + enableSql;
   };
 
   var convertFromUiform = function (content, filename, defaultSchema) {
     var name = path.basename(filename, '.ui'),
       tableName = defaultSchema ? defaultSchema + ".pkguiform" : "unknown",
       notes = "", //"xtMfg package",
+      disableSql,
       insertSql,
-      updateSql;
+      updateSql,
+      enableSql;
+
+    disableSql = "ALTER TABLE " + tableName + " DISABLE TRIGGER ALL;";
 
     insertSql = "insert into " + tableName + " (uiform_name, uiform_order, uiform_enabled, " +
       "uiform_source, uiform_notes) select " +
@@ -138,7 +146,9 @@ regexp:true, undef:true, strict:true, trailing:true, white:true */
       "uiform_source = $$" + content + "$$, uiform_notes = '" + notes + "' " +
       "where uiform_name = '" + name + "';";
 
-    return insertSql + updateSql;
+    enableSql = "ALTER TABLE " + tableName + " ENABLE TRIGGER ALL;";
+
+    return disableSql + insertSql + updateSql + enableSql;
   };
 
   exports.conversionMap = {
