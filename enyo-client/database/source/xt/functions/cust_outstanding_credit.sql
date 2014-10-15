@@ -18,7 +18,7 @@ from (
   where aropen_cust_id = $1
   and aropen_open
   --and aropen_posted = false
-  group by aropen_id, aropen_cust_id, aropen_curr_id, aropen_amount
+  group by aropen_id
 ) unalloc;
 
 $$ language sql;
